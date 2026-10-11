@@ -1,0 +1,48 @@
+name: GH-26 isolated approval hold
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - name: Plan
+        working-directory: gh26
+        run: |
+          terraform init -backend=false -input=false
+          terraform plan -input=false -out=gh26.tfplan
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gh26-plan
+          path: gh26/gh26.tfplan
+
+  apply:
+    needs: plan
+    environment: visi-gh26-approval-gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - uses: actions/download-artifact@v4
+        with:
+          name: gh26-plan
+          path: gh26
+      - name: Apply only after approval
+        working-directory: gh26
+        run: |
+          terraform init -backend=false -input=false
+          terraform apply -input=false gh26.tfplan
